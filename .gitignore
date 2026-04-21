@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+Click.app/
+*.o
+*.d
+.DS_Store
