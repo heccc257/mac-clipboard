@@ -1,13 +1,28 @@
 import AppKit
 import SwiftUI
 
-class ClipboardPanelController {
-    private var panel: NSPanel?
+class ClickablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        // Esc to close
+        if event.keyCode == 53 {
+            orderOut(nil)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+}
+
+class ClipboardPanelController: NSObject {
+    private var panel: ClickablePanel?
     private var monitor: ClipboardMonitor
-    private var clickOutsideMonitor: Any?
+    private var previousApp: NSRunningApplication?
 
     init(monitor: ClipboardMonitor) {
         self.monitor = monitor
+        super.init()
     }
 
     func togglePanel(relativeTo frame: NSRect? = nil) {
@@ -29,12 +44,10 @@ class ClipboardPanelController {
         let panelHeight: CGFloat = 500
 
         if let frame = statusBarFrame {
-            // Position below menu bar icon
             let x = frame.midX - panelWidth / 2
             let y = frame.minY - panelHeight
             panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
         } else {
-            // Position at center of screen
             if let screen = NSScreen.main {
                 let screenFrame = screen.visibleFrame
                 let x = screenFrame.midX - panelWidth / 2
@@ -43,27 +56,22 @@ class ClipboardPanelController {
             }
         }
 
+        previousApp = NSWorkspace.shared.frontmostApplication
+
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-
-        // Monitor for clicks outside panel to dismiss
-        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.hidePanel()
-        }
     }
 
     func hidePanel() {
         panel?.orderOut(nil)
-        if let monitor = clickOutsideMonitor {
-            NSEvent.removeMonitor(monitor)
-            clickOutsideMonitor = nil
-        }
+        previousApp?.activate(options: [])
+        previousApp = nil
     }
 
     private func createPanel() {
-        let panel = NSPanel(
+        let panel = ClickablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
-            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -72,10 +80,12 @@ class ClipboardPanelController {
         panel.level = .floating
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
-        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.hidesOnDeactivate = true
         panel.animationBehavior = .utilityWindow
         panel.backgroundColor = .clear
+        panel.isReleasedWhenClosed = false
+        panel.delegate = self
 
         let hostingView = NSHostingView(
             rootView: ClipboardHistoryView(monitor: monitor) { [weak self] in
@@ -84,9 +94,12 @@ class ClipboardPanelController {
         )
         panel.contentView = hostingView
 
-        // Close on Escape
-        panel.isReleasedWhenClosed = false
-
         self.panel = panel
+    }
+}
+
+extension ClipboardPanelController: NSWindowDelegate {
+    func windowDidResignKey(_ notification: Notification) {
+        // Don't auto-close — let user dismiss via Esc, menu bar click, or hotkey
     }
 }

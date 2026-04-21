@@ -43,6 +43,10 @@ class StorageManager {
         return try? Data(contentsOf: fileURL)
     }
 
+    func imageFilePath(fileName: String) -> String {
+        return imagesDir.appendingPathComponent(fileName).path
+    }
+
     func clearImages() {
         if let files = try? FileManager.default.contentsOfDirectory(at: imagesDir, includingPropertiesForKeys: nil) {
             for file in files {

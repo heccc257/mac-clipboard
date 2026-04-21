@@ -7,10 +7,11 @@ struct ClipboardHistoryView: View {
     @State private var searchText = ""
 
     private var filteredItems: [ClipboardItem] {
+        let textItems = monitor.history.filter { $0.type == .text }
         if searchText.isEmpty {
-            return monitor.history
+            return textItems
         }
-        return monitor.history.filter { $0.matches(searchText) }
+        return textItems.filter { $0.matches(searchText) }
     }
 
     var body: some View {
@@ -22,11 +23,12 @@ struct ClipboardHistoryView: View {
                 TextField("Search clipboard history...", text: $searchText)
                     .textFieldStyle(.plain)
                 if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
+                    HStack {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .onTapGesture { searchText = "" }
                 }
             }
             .padding(10)
@@ -34,13 +36,13 @@ struct ClipboardHistoryView: View {
 
             Divider()
 
-            // History list
+            // History list (text only)
             if filteredItems.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "clipboard")
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
-                    Text(searchText.isEmpty ? "No clipboard history" : "No results")
+                    Text(searchText.isEmpty ? "No text history" : "No results")
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -48,9 +50,8 @@ struct ClipboardHistoryView: View {
                 ScrollView {
                     LazyVStack(spacing: 1) {
                         ForEach(filteredItems) { item in
-                            ClipboardItemRow(item: item) {
-                                pasteItem(item)
-                            }
+                            ClipboardItemRow(item: item)
+                                .onTapGesture { pasteItem(item) }
                         }
                     }
                     .padding(.vertical, 4)
@@ -61,7 +62,7 @@ struct ClipboardHistoryView: View {
 
             // Bottom bar
             HStack {
-                Text("\(monitor.history.count) items")
+                Text("\(filteredItems.count) items")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -82,8 +83,7 @@ struct ClipboardHistoryView: View {
     private func pasteItem(_ item: ClipboardItem) {
         monitor.copyToClipboard(item: item)
         onDismiss()
-        // Simulate paste after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             PasteSimulator.simulatePaste()
         }
     }
