@@ -1,6 +1,7 @@
 .build/
 .swiftpm/
 Click.app/
+Clippable.app/
 *.o
 *.d
 .DS_Store

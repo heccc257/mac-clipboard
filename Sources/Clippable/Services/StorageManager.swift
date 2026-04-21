@@ -9,7 +9,7 @@ class StorageManager {
 
     private init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        appSupportDir = appSupport.appendingPathComponent("Click", isDirectory: true)
+        appSupportDir = appSupport.appendingPathComponent("Clippable", isDirectory: true)
         historyFileURL = appSupportDir.appendingPathComponent("history.json")
         imagesDir = appSupportDir.appendingPathComponent("images", isDirectory: true)
 

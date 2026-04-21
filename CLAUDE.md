@@ -14,7 +14,7 @@ No tests or linter configured yet.
 
 ## Architecture
 
-Click is a native macOS clipboard history manager (like Windows Win+V), built with Swift Package Manager. It runs as a menu bar accessory app (no Dock icon).
+Clippable is a native macOS clipboard history manager (like Windows Win+V), built with Swift Package Manager. It runs as a menu bar accessory app (no Dock icon).
 
 ### Core Flow
 
@@ -24,12 +24,12 @@ Click is a native macOS clipboard history manager (like Windows Win+V), built wi
 4. **HotkeyManager** registers a global Cmd+Shift+V hotkey via Carbon `RegisterEventHotKey`, posts a `Notification` to toggle the panel
 5. **ClipboardPanelController** creates a floating `NSPanel` (non-activating, so it doesn't steal focus) hosting a SwiftUI view
 6. **ClipboardHistoryView** shows a searchable list; selecting an item writes it to the pasteboard and **PasteSimulator** fires a `CGEvent` Cmd+V into the frontmost app
-7. **StorageManager** persists history as JSON in `~/Library/Application Support/Click/`, images stored as separate PNG files in an `images/` subdirectory
+7. **StorageManager** persists history as JSON in `~/Library/Application Support/Clippable/`, images stored as separate PNG files in an `images/` subdirectory
 
 ### Key Design Decisions
 
 - No external dependencies — everything uses system frameworks (AppKit, SwiftUI, Carbon, CoreGraphics)
-- Self-copy detection: `ClipboardMonitor.isInternalCopy` flag prevents re-recording items pasted from Click itself
+- Self-copy detection: `ClipboardMonitor.isInternalCopy` flag prevents re-recording items pasted from Clippable itself
 - Paste simulation requires **Accessibility permission** (`AXIsProcessTrusted`); the app prompts on first use
 - Panel hides when user clicks outside (via `NSEvent.addGlobalMonitorForEvents`) or selects an item
 - Debounced saves (2s) avoid disk thrashing during rapid copy sequences

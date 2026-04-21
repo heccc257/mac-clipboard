@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "Building Click (release)..."
+echo "Building Clippable (release)..."
 swift build -c release
 
-APP_NAME="Click"
+APP_NAME="Clippable"
 APP_DIR="$APP_NAME.app"
 CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
@@ -13,7 +13,7 @@ RESOURCES="$CONTENTS/Resources"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS" "$RESOURCES"
 
-cp .build/release/Click "$MACOS/Click"
+cp .build/release/Clippable "$MACOS/Clippable"
 
 cat > "$CONTENTS/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21,17 +21,17 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Click</string>
+    <string>Clippable</string>
     <key>CFBundleDisplayName</key>
-    <string>Click</string>
+    <string>Clippable</string>
     <key>CFBundleIdentifier</key>
-    <string>com.click.clipboard</string>
+    <string>com.clippable.clipboard</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <key>CFBundleExecutable</key>
-    <string>Click</string>
+    <string>Clippable</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -47,7 +47,7 @@ EOF
 echo "✓ Built $APP_DIR"
 echo ""
 echo "To install:"
-echo "  cp -r Click.app /Applications/"
+echo "  cp -r Clippable.app /Applications/"
 echo ""
-echo "Then double-click Click.app in /Applications to run."
+echo "Then double-click Clippable.app in /Applications to run."
 echo "It will appear in the menu bar (no Dock icon)."

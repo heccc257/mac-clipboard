@@ -3,12 +3,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Click",
+    name: "Clippable",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Click",
-            path: "Sources/Click",
+            name: "Clippable",
+            path: "Sources/Clippable",
             linkerSettings: [
                 .linkedFramework("Carbon"),
                 .linkedFramework("AppKit"),

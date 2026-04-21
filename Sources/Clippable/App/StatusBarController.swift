@@ -9,7 +9,7 @@ class StatusBarController {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Click Clipboard")
+            button.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Clippable")
             button.action = #selector(statusBarButtonClicked(_:))
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -30,7 +30,7 @@ class StatusBarController {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Clear History", action: #selector(clearHistory), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit Click", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Clippable", action: #selector(quit), keyEquivalent: "q"))
 
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
