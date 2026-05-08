@@ -12,6 +12,13 @@ class ClipboardMonitor: ObservableObject {
 
     private let maxHistoryCount = 500
 
+    // Pasteboard reads go through the system pboard IPC server, which is
+    // single-threaded across processes. Doing them on the main thread while
+    // another app (e.g. VSCode/Electron) is also accessing the clipboard can
+    // stall both sides. Read on a background queue and only touch @Published
+    // state back on main.
+    private let readQueue = DispatchQueue(label: "com.clippable.pasteboard-read", qos: .utility)
+
     private init() {
         lastChangeCount = NSPasteboard.general.changeCount
     }
@@ -70,27 +77,46 @@ class ClipboardMonitor: ObservableObject {
             return
         }
 
-        if let item = readPasteboard() {
-            // Deduplicate: skip if same hash as most recent
-            if let last = history.first, last.contentHash == item.contentHash {
-                return
+        // Debounce briefly so the writing app finishes posting all flavors
+        // before we touch the pasteboard, then read off the main thread.
+        readQueue.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self = self else { return }
+            // Re-check the change count: if another change has already
+            // landed, drop this read — the next tick will pick it up.
+            let pasteboard = NSPasteboard.general
+            guard pasteboard.changeCount == currentCount else { return }
+
+            guard let item = self.readPasteboard(pasteboard) else { return }
+
+            DispatchQueue.main.async {
+                // Deduplicate: skip if same hash as most recent
+                if let last = self.history.first, last.contentHash == item.contentHash {
+                    return
+                }
+                self.history.insert(item, at: 0)
+                if self.history.count > self.maxHistoryCount {
+                    self.history = Array(self.history.prefix(self.maxHistoryCount))
+                }
+                self.scheduleSave()
             }
-            history.insert(item, at: 0)
-            if history.count > maxHistoryCount {
-                history = Array(history.prefix(maxHistoryCount))
-            }
-            scheduleSave()
         }
     }
 
-    private func readPasteboard() -> ClipboardItem? {
-        let pasteboard = NSPasteboard.general
+    /// Read the current pasteboard. Safe to call off the main thread.
+    /// Uses `pasteboard.types` for cheap type detection so we never request
+    /// data flavors the source app didn't advertise — Electron apps like
+    /// VSCode lazily materialize promised types and a blind `.tiff` read can
+    /// stall their main thread.
+    private func readPasteboard(_ pasteboard: NSPasteboard) -> ClipboardItem? {
+        let availableTypes = Set(pasteboard.types ?? [])
         let sourceApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
-        // Check for file URLs first
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
-            .urlReadingFileURLsOnly: true
-        ]) as? [URL], !urls.isEmpty {
+        // Check for file URLs first — only if URL types are advertised.
+        let urlTypes: Set<NSPasteboard.PasteboardType> = [.fileURL, .URL]
+        if !availableTypes.isDisjoint(with: urlTypes),
+           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+               .urlReadingFileURLsOnly: true
+           ]) as? [URL], !urls.isEmpty {
             let paths = urls.map { $0.path }
             let hashData = paths.joined(separator: "\n").data(using: .utf8) ?? Data()
             return ClipboardItem(
@@ -105,39 +131,48 @@ class ClipboardMonitor: ObservableObject {
             )
         }
 
-        // Check for images
-        if let imageData = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff) {
-            // Skip very large images (>10MB)
-            guard imageData.count <= 10_000_000 else { return nil }
+        // Check for images — only if image types are advertised. Prefer PNG
+        // to avoid forcing a TIFF materialization when both are present.
+        let imageTypes: Set<NSPasteboard.PasteboardType> = [.png, .tiff]
+        if !availableTypes.isDisjoint(with: imageTypes) {
+            let rawImageData: Data? = availableTypes.contains(.png)
+                ? pasteboard.data(forType: .png)
+                : pasteboard.data(forType: .tiff)
 
-            let fileName = UUID().uuidString + ".png"
-            // Convert to PNG if TIFF
-            let pngData: Data
-            if let img = NSImage(data: imageData),
-               let tiffRep = img.tiffRepresentation,
-               let bitmapRep = NSBitmapImageRep(data: tiffRep),
-               let png = bitmapRep.representation(using: .png, properties: [:]) {
-                pngData = png
-            } else {
-                pngData = imageData
+            if let imageData = rawImageData {
+                // Skip very large images (>10MB)
+                guard imageData.count <= 10_000_000 else { return nil }
+
+                let fileName = UUID().uuidString + ".png"
+                // Convert to PNG if TIFF
+                let pngData: Data
+                if let img = NSImage(data: imageData),
+                   let tiffRep = img.tiffRepresentation,
+                   let bitmapRep = NSBitmapImageRep(data: tiffRep),
+                   let png = bitmapRep.representation(using: .png, properties: [:]) {
+                    pngData = png
+                } else {
+                    pngData = imageData
+                }
+
+                StorageManager.shared.saveImageData(pngData, fileName: fileName)
+
+                return ClipboardItem(
+                    id: UUID(),
+                    timestamp: Date(),
+                    type: .image,
+                    textContent: nil,
+                    imageFileName: fileName,
+                    filePaths: nil,
+                    sourceAppBundleID: sourceApp,
+                    contentHash: ClipboardItem.computeHash(for: pngData)
+                )
             }
-
-            StorageManager.shared.saveImageData(pngData, fileName: fileName)
-
-            return ClipboardItem(
-                id: UUID(),
-                timestamp: Date(),
-                type: .image,
-                textContent: nil,
-                imageFileName: fileName,
-                filePaths: nil,
-                sourceAppBundleID: sourceApp,
-                contentHash: ClipboardItem.computeHash(for: pngData)
-            )
         }
 
-        // Check for text
-        if let text = pasteboard.string(forType: .string), !text.isEmpty {
+        // Check for text — only if a string flavor is advertised.
+        if availableTypes.contains(.string),
+           let text = pasteboard.string(forType: .string), !text.isEmpty {
             let hashData = text.data(using: .utf8) ?? Data()
             return ClipboardItem(
                 id: UUID(),
