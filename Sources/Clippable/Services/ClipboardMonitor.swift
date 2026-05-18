@@ -103,90 +103,26 @@ class ClipboardMonitor: ObservableObject {
     }
 
     /// Read the current pasteboard. Safe to call off the main thread.
-    /// Uses `pasteboard.types` for cheap type detection so we never request
-    /// data flavors the source app didn't advertise — Electron apps like
-    /// VSCode lazily materialize promised types and a blind `.tiff` read can
-    /// stall their main thread.
+    /// Text-only: image and file flavors are intentionally ignored.
     private func readPasteboard(_ pasteboard: NSPasteboard) -> ClipboardItem? {
         let availableTypes = Set(pasteboard.types ?? [])
         let sourceApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
-        // Check for file URLs first — only if URL types are advertised.
-        let urlTypes: Set<NSPasteboard.PasteboardType> = [.fileURL, .URL]
-        if !availableTypes.isDisjoint(with: urlTypes),
-           let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
-               .urlReadingFileURLsOnly: true
-           ]) as? [URL], !urls.isEmpty {
-            let paths = urls.map { $0.path }
-            let hashData = paths.joined(separator: "\n").data(using: .utf8) ?? Data()
-            return ClipboardItem(
-                id: UUID(),
-                timestamp: Date(),
-                type: .filePaths,
-                textContent: nil,
-                imageFileName: nil,
-                filePaths: paths,
-                sourceAppBundleID: sourceApp,
-                contentHash: ClipboardItem.computeHash(for: hashData)
-            )
+        guard availableTypes.contains(.string),
+              let text = pasteboard.string(forType: .string), !text.isEmpty else {
+            return nil
         }
-
-        // Check for images — only if image types are advertised. Prefer PNG
-        // to avoid forcing a TIFF materialization when both are present.
-        let imageTypes: Set<NSPasteboard.PasteboardType> = [.png, .tiff]
-        if !availableTypes.isDisjoint(with: imageTypes) {
-            let rawImageData: Data? = availableTypes.contains(.png)
-                ? pasteboard.data(forType: .png)
-                : pasteboard.data(forType: .tiff)
-
-            if let imageData = rawImageData {
-                // Skip very large images (>10MB)
-                guard imageData.count <= 10_000_000 else { return nil }
-
-                let fileName = UUID().uuidString + ".png"
-                // Convert to PNG if TIFF
-                let pngData: Data
-                if let img = NSImage(data: imageData),
-                   let tiffRep = img.tiffRepresentation,
-                   let bitmapRep = NSBitmapImageRep(data: tiffRep),
-                   let png = bitmapRep.representation(using: .png, properties: [:]) {
-                    pngData = png
-                } else {
-                    pngData = imageData
-                }
-
-                StorageManager.shared.saveImageData(pngData, fileName: fileName)
-
-                return ClipboardItem(
-                    id: UUID(),
-                    timestamp: Date(),
-                    type: .image,
-                    textContent: nil,
-                    imageFileName: fileName,
-                    filePaths: nil,
-                    sourceAppBundleID: sourceApp,
-                    contentHash: ClipboardItem.computeHash(for: pngData)
-                )
-            }
-        }
-
-        // Check for text — only if a string flavor is advertised.
-        if availableTypes.contains(.string),
-           let text = pasteboard.string(forType: .string), !text.isEmpty {
-            let hashData = text.data(using: .utf8) ?? Data()
-            return ClipboardItem(
-                id: UUID(),
-                timestamp: Date(),
-                type: .text,
-                textContent: text,
-                imageFileName: nil,
-                filePaths: nil,
-                sourceAppBundleID: sourceApp,
-                contentHash: ClipboardItem.computeHash(for: hashData)
-            )
-        }
-
-        return nil
+        let hashData = text.data(using: .utf8) ?? Data()
+        return ClipboardItem(
+            id: UUID(),
+            timestamp: Date(),
+            type: .text,
+            textContent: text,
+            imageFileName: nil,
+            filePaths: nil,
+            sourceAppBundleID: sourceApp,
+            contentHash: ClipboardItem.computeHash(for: hashData)
+        )
     }
 
     private var saveWorkItem: DispatchWorkItem?

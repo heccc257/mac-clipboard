@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import Carbon
 
 struct ClipboardHistoryView: View {
     @ObservedObject var monitor: ClipboardMonitor
@@ -83,7 +85,13 @@ struct ClipboardHistoryView: View {
     private func pasteItem(_ item: ClipboardItem) {
         monitor.copyToClipboard(item: item)
         onDismiss()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        // Fixed delay long enough for the previous app to regain key focus.
+        // (Polling for frontmostApplication can fire too early — the app
+        // becomes frontmost before its key window is ready to receive input.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            if IsSecureEventInputEnabled() {
+                debugLog("paste: Secure Event Input is enabled — Cmd+V will be dropped by the system")
+            }
             PasteSimulator.simulatePaste()
         }
     }

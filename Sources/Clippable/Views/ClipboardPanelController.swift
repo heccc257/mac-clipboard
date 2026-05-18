@@ -26,6 +26,8 @@ class ClipboardPanelController: NSObject {
     }
 
     func togglePanel(relativeTo frame: NSRect? = nil) {
+        let visible = panel?.isVisible ?? false
+        debugLog("togglePanel: panel=\(panel == nil ? "nil" : "exists") visible=\(visible) frame=\(String(describing: frame))")
         if let panel = panel, panel.isVisible {
             hidePanel()
         } else {
@@ -38,7 +40,10 @@ class ClipboardPanelController: NSObject {
             createPanel()
         }
 
-        guard let panel = panel else { return }
+        guard let panel = panel else {
+            debugLog("showPanel: panel is nil after createPanel — aborting")
+            return
+        }
 
         let panelWidth: CGFloat = 380
         let panelHeight: CGFloat = 500
@@ -58,33 +63,53 @@ class ClipboardPanelController: NSObject {
 
         previousApp = NSWorkspace.shared.frontmostApplication
 
+        // Do NOT call NSApp.activate(ignoringOtherApps:) here — it forces
+        // macOS to switch the user to whichever Space the panel lives on,
+        // overriding .canJoinAllSpaces. With .nonactivatingPanel + a high
+        // window level, makeKeyAndOrderFront alone is enough.
         panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        panel.orderFrontRegardless()
+        let activeApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
+        let screens = NSScreen.screens.map { "\($0.frame)" }.joined(separator: ", ")
+        debugLog("showPanel: shown at \(panel.frame), isVisible=\(panel.isVisible), isKey=\(panel.isKeyWindow), level=\(panel.level.rawValue), alpha=\(panel.alphaValue), frontmost=\(activeApp), screens=[\(screens)]")
     }
 
     func hidePanel() {
+        debugLog("hidePanel called")
         panel?.orderOut(nil)
-        previousApp?.activate(options: [])
+        // .activateIgnoringOtherApps is the only reliable way to actually pull
+        // the previous app to the front from a status-bar/accessory app.
+        // Empty options frequently no-ops on recent macOS.
+        previousApp?.activate(options: [.activateIgnoringOtherApps])
         previousApp = nil
     }
 
     private func createPanel() {
         let panel = ClickablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            // .nonactivatingPanel lets the panel become key without activating
+            // Clippable as the frontmost app — that's what previously caused
+            // macOS to yank the user to whichever Space the panel lived on.
+            styleMask: [.nonactivatingPanel, .titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
         panel.isFloatingPanel = true
-        panel.level = .floating
+        panel.level = .popUpMenu
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = true
+        // We manage hide/show manually; avoid auto-hide-on-deactivate
+        // since with .nonactivatingPanel the app may never be "active".
+        panel.hidesOnDeactivate = false
         panel.animationBehavior = .utilityWindow
-        panel.backgroundColor = .clear
+        panel.backgroundColor = .windowBackgroundColor
+        panel.isOpaque = true
         panel.isReleasedWhenClosed = false
+        // Appear on all Spaces (including over fullscreen apps) so the panel
+        // follows the user without forcing a Space switch.
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
 
         let hostingView = NSHostingView(
