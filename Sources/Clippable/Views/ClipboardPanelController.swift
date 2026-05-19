@@ -19,6 +19,11 @@ class ClipboardPanelController: NSObject {
     private var panel: ClickablePanel?
     private var monitor: ClipboardMonitor
     private var previousApp: NSRunningApplication?
+    // Global event monitor that closes the panel when the user clicks
+    // anywhere outside our app (other apps, desktop, system menu bar items).
+    // Clicks inside our process — the panel itself, the status bar icon —
+    // are NOT delivered to the global monitor, so they don't fire here.
+    private var outsideClickMonitor: Any?
 
     init(monitor: ClipboardMonitor) {
         self.monitor = monitor
@@ -69,6 +74,7 @@ class ClipboardPanelController: NSObject {
         // window level, makeKeyAndOrderFront alone is enough.
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+        installOutsideClickMonitor()
         let activeApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
         let screens = NSScreen.screens.map { "\($0.frame)" }.joined(separator: ", ")
         debugLog("showPanel: shown at \(panel.frame), isVisible=\(panel.isVisible), isKey=\(panel.isKeyWindow), level=\(panel.level.rawValue), alpha=\(panel.alphaValue), frontmost=\(activeApp), screens=[\(screens)]")
@@ -76,6 +82,7 @@ class ClipboardPanelController: NSObject {
 
     func hidePanel() {
         debugLog("hidePanel called")
+        removeOutsideClickMonitor()
         panel?.orderOut(nil)
         // .activateIgnoringOtherApps is the only reliable way to actually pull
         // the previous app to the front from a status-bar/accessory app.
@@ -120,6 +127,24 @@ class ClipboardPanelController: NSObject {
         panel.contentView = hostingView
 
         self.panel = panel
+    }
+
+    private func installOutsideClickMonitor() {
+        removeOutsideClickMonitor()
+        // Global monitors only fire for events in OTHER processes, so this
+        // won't fire for clicks on the panel itself or our status bar icon.
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            self?.hidePanel()
+        }
+    }
+
+    private func removeOutsideClickMonitor() {
+        if let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
+        }
     }
 }
 

@@ -89,9 +89,20 @@ class ClipboardMonitor: ObservableObject {
             guard let item = self.readPasteboard(pasteboard) else { return }
 
             DispatchQueue.main.async {
-                // Deduplicate: skip if same hash as most recent
-                if let last = self.history.first, last.contentHash == item.contentHash {
-                    return
+                // Deduplicate against the most recent entry. Repeated Ctrl+C
+                // of the same content (a common habit to "make sure the copy
+                // took") shouldn't pile up duplicates. Hash check is the fast
+                // path; we also compare textContent directly as a tie-breaker
+                // in case hashes ever diverge for visually-identical text.
+                if let last = self.history.first {
+                    if last.contentHash == item.contentHash {
+                        return
+                    }
+                    if last.type == .text, item.type == .text,
+                       let lastText = last.textContent, let newText = item.textContent,
+                       lastText == newText {
+                        return
+                    }
                 }
                 self.history.insert(item, at: 0)
                 if self.history.count > self.maxHistoryCount {
