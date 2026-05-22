@@ -2,7 +2,9 @@
 
 A native macOS clipboard history manager, like Windows Win+V. Built with Swift/SwiftUI/AppKit.
 
-Current version: see [`VERSION`](VERSION). Bump it there and re-run `./build-app.sh` to update the bundle's `CFBundleShortVersionString` / `CFBundleVersion`. Tag releases as `vX.Y.Z`.
+Current version: see [`VERSION`](VERSION). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+
+To cut a release: bump `VERSION`, move entries from `## [Unreleased]` into a new `## [X.Y.Z]` section in `CHANGELOG.md`, run `./build-app.sh`, then tag as `vX.Y.Z`.
 
 ## Features
 
