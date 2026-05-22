@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "Building Clippable (release)..."
+VERSION=$(cat VERSION | tr -d '[:space:]')
+echo "Building Clippable v$VERSION (release)..."
 swift build -c release
 
 APP_NAME="Clippable"
@@ -15,7 +16,7 @@ mkdir -p "$MACOS" "$RESOURCES"
 
 cp .build/release/Clippable "$MACOS/Clippable"
 
-cat > "$CONTENTS/Info.plist" << 'EOF'
+cat > "$CONTENTS/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -27,9 +28,9 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
     <key>CFBundleIdentifier</key>
     <string>com.clippable.clipboard</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleExecutable</key>
     <string>Clippable</string>
     <key>CFBundlePackageType</key>
@@ -44,7 +45,7 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 </plist>
 EOF
 
-echo "✓ Built $APP_DIR"
+echo "✓ Built $APP_DIR (v$VERSION)"
 echo ""
 echo "To install:"
 echo "  cp -r Clippable.app /Applications/"

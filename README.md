@@ -2,6 +2,8 @@
 
 A native macOS clipboard history manager, like Windows Win+V. Built with Swift/SwiftUI/AppKit.
 
+Current version: see [`VERSION`](VERSION). Bump it there and re-run `./build-app.sh` to update the bundle's `CFBundleShortVersionString` / `CFBundleVersion`. Tag releases as `vX.Y.Z`.
+
 ## Features
 
 - **Clipboard History**: Monitors and records text, images, and file copies
