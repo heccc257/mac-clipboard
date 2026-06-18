@@ -75,6 +75,9 @@ class ClipboardPanelController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         installOutsideClickMonitor()
+        // Tell the SwiftUI view to reset search + scroll back to the top so a
+        // reopened panel always starts fresh at the newest item.
+        NotificationCenter.default.post(name: .clipboardPanelDidShow, object: nil)
         let activeApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
         let screens = NSScreen.screens.map { "\($0.frame)" }.joined(separator: ", ")
         debugLog("showPanel: shown at \(panel.frame), isVisible=\(panel.isVisible), isKey=\(panel.isKeyWindow), level=\(panel.level.rawValue), alpha=\(panel.alphaValue), frontmost=\(activeApp), screens=[\(screens)]")

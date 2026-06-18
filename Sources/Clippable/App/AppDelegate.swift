@@ -39,4 +39,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension Notification.Name {
     static let toggleClipboardPanel = Notification.Name("toggleClipboardPanel")
+    static let clipboardPanelDidShow = Notification.Name("clipboardPanelDidShow")
 }

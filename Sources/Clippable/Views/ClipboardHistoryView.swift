@@ -7,13 +7,23 @@ struct ClipboardHistoryView: View {
     var onDismiss: () -> Void
 
     @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
+
+    private static let topAnchorID = "top"
 
     private var filteredItems: [ClipboardItem] {
         let textItems = monitor.history.filter { $0.type == .text }
         if searchText.isEmpty {
             return textItems
         }
-        return textItems.filter { $0.matches(searchText) }
+        // Fuzzy filter + rank by match score (best matches first).
+        return textItems
+            .compactMap { item -> (item: ClipboardItem, score: Int)? in
+                guard let score = item.fuzzyScore(searchText) else { return nil }
+                return (item, score)
+            }
+            .sorted { $0.score > $1.score }
+            .map { $0.item }
     }
 
     var body: some View {
@@ -24,6 +34,7 @@ struct ClipboardHistoryView: View {
                     .foregroundColor(.secondary)
                 TextField("Search clipboard history...", text: $searchText)
                     .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
                 if !searchText.isEmpty {
                     HStack {
                         Image(systemName: "xmark.circle.fill")
@@ -39,24 +50,38 @@ struct ClipboardHistoryView: View {
             Divider()
 
             // History list (text only)
-            if filteredItems.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "clipboard")
-                        .font(.system(size: 40))
-                        .foregroundColor(.secondary)
-                    Text(searchText.isEmpty ? "No text history" : "No results")
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 1) {
+                        // Invisible top anchor used to jump back to the newest
+                        // item when the panel is reopened.
+                        Color.clear.frame(height: 0).id(Self.topAnchorID)
                         ForEach(filteredItems) { item in
-                            ClipboardItemRow(item: item)
+                            ClipboardItemRow(item: item, searchText: searchText)
                                 .onTapGesture { pasteItem(item) }
                         }
                     }
                     .padding(.vertical, 4)
+                }
+                .overlay {
+                    if filteredItems.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "clipboard")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text(searchText.isEmpty ? "No text history" : "No results")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .clipboardPanelDidShow)) { _ in
+                    searchText = ""
+                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                    // Defer focus until the panel has become key so the cursor
+                    // reliably lands in the search field (typing works at once).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isSearchFocused = true
+                    }
                 }
             }
 
@@ -80,6 +105,11 @@ struct ClipboardHistoryView: View {
         }
         .frame(width: 380, height: 500)
         .background(.ultraThinMaterial)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                isSearchFocused = true
+            }
+        }
     }
 
     private func pasteItem(_ item: ClipboardItem) {

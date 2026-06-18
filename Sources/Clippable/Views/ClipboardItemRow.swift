@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ClipboardItemRow: View {
     let item: ClipboardItem
+    var searchText: String = ""
 
     @State private var isHovered = false
 
@@ -13,10 +14,9 @@ struct ClipboardItemRow: View {
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.previewText)
+                Text(highlightedText)
                     .lineLimit(2)
                     .font(.system(size: 13))
-                    .foregroundColor(.primary)
 
                 Text(relativeTime(item.timestamp))
                     .font(.caption2)
@@ -35,6 +35,26 @@ struct ClipboardItemRow: View {
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+
+    /// The preview text with fuzzy-matched characters highlighted in yellow.
+    private var highlightedText: AttributedString {
+        let preview = item.previewText
+        var attr = AttributedString(preview)
+        attr.foregroundColor = .primary
+
+        guard !searchText.isEmpty else { return attr }
+        let indices = ClipboardItem.matchedIndices(in: preview, query: searchText)
+        guard !indices.isEmpty else { return attr }
+
+        for range in indices.rangeView {
+            let lower = attr.index(attr.startIndex, offsetByCharacters: range.lowerBound)
+            let upper = attr.index(attr.startIndex, offsetByCharacters: range.upperBound)
+            attr[lower..<upper].backgroundColor = Color(red: 1.0, green: 0.85, blue: 0.25)
+            attr[lower..<upper].foregroundColor = Color.black.opacity(0.9)
+            attr[lower..<upper].inlinePresentationIntent = .stronglyEmphasized
+        }
+        return attr
     }
 
     private func relativeTime(_ date: Date) -> String {
